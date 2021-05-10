@@ -1,52 +1,72 @@
 import logo from './logo.svg';
 import './App.css';
 import { useEffect,useState } from 'react';
-//api key M4DZ9R465CNF2YUEHIKVMAHI6VYI2W3YUT
+import Web3 from 'web3'
+import pancakeABI from './abipancakerouterMainnet.json'
 
 function App() {
   const [ethEn,setETHEn]  = useState(null)
-  const [metamask , setMetamask] = useState(null)
-  useEffect(()=>{
-    const eth = window.ethereum 
-    console.log(Object.keys(eth))
-    console.log(Object.keys(eth['request']))
-    console.log(eth['selectedAddress'])
-    setMetamask(eth['selectedAddress'])
-    setETHEn(eth)
-    fetch('https://api.bscscan.com/api?module=account&action=txlist&address=0xa2F28A71cca242aBe55AEC0Ff046c1C8dCdE5eDD&startblock=7200000&endblock=99999999&sort=asc&apikey=M4DZ9R465CNF2YUEHIKVMAHI6VYI2W3YUT')
-    .then((res)=>{
-      return res.json()
-    }).then((data)=>{
-      console.log(data)
-    })
-  },[])
-  const handleConnectMetamask = (eth)=>{
-    if(eth){
-      eth.request({ method: 'eth_requestAccounts' }).then((res)=>{
-        console.log(res)
-      })
-      // console.log(res)
-    }
-  }
-  const handleSendETH = (eth)=>{
-    const destination = '0x'
-    const transactionParameters = {
-      nonce: '0x00', // ignored by MetaMask
-      gasPrice: '0x12A05F200', // customizable by user during MetaMask confirmation. price
-      gas: '0x33450', // customizable by user during MetaMask confirmation. limit
-      to: destination, // Required except during contract publications.
-      from: eth.selectedAddress, // must match user's active address.
-      value: '0x2386F26FC10000', // Only required to send ether to the recipient from the initiating external account.
-      data: '0x00', // Optional, but used for defining smart contract creation and interaction.
-      chainId: eth.chainId, // Used to prevent transaction reuse across blockchains. Auto-filled by MetaMask.
-    }
-    eth.request({
-      method: 'eth_sendTransaction',
-      params: [transactionParameters],
-    }).then((tx)=>{
-      console.log(tx)
-    })
 
+  const handleCreateWallet = (eth)=>{
+    const web3 = new Web3('https://bsc-dataseed1.binance.org:443') // BSC mainnet. You can use bscscan to check your wallet and tx 
+    const account = web3.eth.accounts.create() //get private key from this param
+    
+  }
+  const handleGetAddress = ()=>{
+    const web3 = new Web3('https://bsc-dataseed1.binance.org:443') // BSC mainnet. You can use bscscan to check your wallet and tx 
+
+    const privateKey = '0x' // input your privatekey 
+    const account = web3.eth.accounts.privateKeyToAccount(privateKey)
+    console.log(account['address'])
+
+  }
+  const recoveryWallet = ()=>{
+    const web3 = new Web3('https://bsc-dataseed1.binance.org:443') // BSC mainnet 
+
+
+    const privateKey = '0x' // input your privatekey 
+    const account = web3.eth.accounts.privateKeyToAccount(privateKey)
+    web3.eth.accounts.privateKeyToAccount(privateKey)
+
+
+    const pancakeRouter = '0x10ed43c718714eb63d5aa57b78b54704e256024e' // you can search this address in bsc maninet.
+    let contract = new web3.eth.Contract(pancakeABI,pancakeRouter) // this line is mean decompile binary smartcontract with abi.
+
+    let contractswap = contract.methods
+    .swapExactETHForTokens('0',['0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c','0xe9e7cea3dedca5984780bafc599bd69add087d56'],account['address'],'16205518720000')
+    // you can check input param from pancakerouter method. https://bscscan.com/address/0x10ed43c718714eb63d5aa57b78b54704e256024e#writeContract.
+
+    let encodeContract = contractswap.encodeABI() // encode the contract for prepare to send into blockchain.
+
+
+    let txData = {
+      from : account['address'], 
+      to : pancakeRouter, 
+      gas : 210000,
+      data : encodeContract, 
+      value : web3.utils.toWei('0.001', 'Ether') 
+    }
+
+    account.signTransaction(txData).then((signedTX)=>{  // Before send the tx. You must use acc to sign the tx. 
+      console.log(signedTX)
+      web3.eth.sendSignedTransaction(signedTX.rawTransaction)//  After we signed the tx. We could send via web3 into blockchain.
+      .on('transactionHash', function(hash){
+        console.log(`this is hash ${hash}`)
+      })
+      .on('confirmation', function(confirmationNumber, receipt){
+        console.log(`this is hash for confirmation ${confirmationNumber}`)
+        console.log(receipt)
+      })
+      .on('receipt', function(receipt){
+        console.log(`receipt`)
+        console.log(receipt)
+      })
+      .on('error', function(error, receipt) { // If the transaction was rejected by the network with a receipt, the second parameter will be the receipt.
+          console.error("Error:", error, "Receipt:", receipt)
+      })
+      
+    })
+    
   }
   return (
     <div className="App">
@@ -64,14 +84,21 @@ function App() {
           Learn React
         </a>
         <p
-        onClick={()=>{handleConnectMetamask(ethEn)}}
+        onClick={()=>{handleCreateWallet(ethEn)}}
         >
-          connect metamask
+          create wallet
         </p>
-        <a
-        onClick={()=>{handleSendETH(ethEn)}}
-        > send ETH </a>
-        <p>{metamask}</p>
+        <p
+        onClick={handleGetAddress}
+        >
+
+          get Address
+        </p>
+        <p
+        onClick={recoveryWallet}
+        >
+          recover wallet
+        </p>
       </header>
     </div>
   );
